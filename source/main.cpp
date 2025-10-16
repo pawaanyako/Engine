@@ -9,7 +9,7 @@ int main() {
         Application application(800, 800, "Engine");
         application.run();
     } catch (const std::exception& e) {
-        std::cerr << e.what();
+        std::cerr << "[ERROR] " << e.what();
     }
     return 0;
 }

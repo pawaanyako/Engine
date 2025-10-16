@@ -2,6 +2,7 @@
 #define APPLICATION_H_
 
 #include <config.h>
+#include <scene.h>
 
 class Application {
 public:
@@ -12,9 +13,11 @@ public:
 
 private:
     GLFWwindow* window_ = nullptr;
+    Scene* scene_ = nullptr;
+    Shader* shader_ = nullptr;
 
-    static void framebuffer_size_callback(GLFWwindow* window, int width, int height);
-    static void process_input(GLFWwindow* window);
-    static void render(GLFWwindow* window);
+    void static framebuffer_size_callback(GLFWwindow* window, GLsizei width, GLsizei height);
+    void static process_input(GLFWwindow* window);
+    void render(GLFWwindow* window) const;
 };
 #endif

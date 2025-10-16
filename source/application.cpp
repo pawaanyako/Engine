@@ -1,21 +1,22 @@
+#define MATERIALS_PATH "../../resources/materials/"
 #define MODELS_PATH "../../resources/models/"
 #define SHADERS_PATH "../../resources/shaders/"
-#include <config.h>
-#include <iostream>
+#define TEXTURES_PATH "../../resources/textures/"
 
 #include <application.h>
+#include <config.h>
+#include <logger.h>
 #include <mesh_builder.h>
-#include <object.h>
 #include <scene.h>
 #include <shader.h>
 
-MeshBuilder mesh_builder;
-Scene scene;
+#include <iostream>
 
 Application::Application(int width, int height, const char* title) {
     if (!glfwInit()) {
-        throw std::runtime_error("Failed to init GLFW");
+        throw std::runtime_error("Failed to initialize GLFW");
     }
+    Logger::debug("GLFW initialization success");
 
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -30,13 +31,16 @@ Application::Application(int width, int height, const char* title) {
         throw std::runtime_error("Failed to create GLFW window");
         glfwTerminate();
     }
+    Logger::debug("GLFW create window success");
     glfwMakeContextCurrent(window_);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
         throw std::runtime_error("Failed to initialize GLAD");
         glfwTerminate();
     }
+    Logger::debug("GLAD initialization success");
 
+    glfwSetWindowUserPointer(window_, this);
     glfwSetFramebufferSizeCallback(window_, framebuffer_size_callback);
     glfwGetFramebufferSize(window_, &width, &height);
     glViewport(0, 0, (GLsizei)width, (GLsizei)height);
@@ -47,23 +51,37 @@ Application::~Application() {
         glfwDestroyWindow(window_);
         glfwTerminate();
     }
+    if (scene_ != nullptr) {
+        delete scene_;
+    }
+    if (shader_ != nullptr) {
+        delete shader_;
+    }
 }
 
 void Application::run() {
-    vec3<GLfloat> v1 = {-0.5f, 0.5f, -1.0f};
-    vec3<GLfloat> v2 = {0.5f, 0.5f, -0.7f};
-    vec3<GLfloat> v3 = {0.5f, -0.5f, 0.3f};
-    vec3<GLfloat> v4 = {-0.5f, -0.5f, 1.0f};
+    MeshBuilder mesh_builder;
+    scene_ = new Scene();
     // mesh_builder.add_triangle(v1, v2, v3);
-    mesh_builder.add_quad(v1, v2, v3, v4);
+    mesh_builder.add_quad({-0.5f, 0.5f, -1.0f},
+                          {0.5f, 0.5f, -0.7f},
+                          {0.5f, -0.5f, 0.3f},
+                          {-0.5f, -0.5f, 1.0f});
 
-    // scene.load_mesh(mesh_builder.build());
-    scene.load_mesh(Mesh(MODELS_PATH "suzanne.obj"));
+    // scene_->load_mesh(mesh_builder.build());
+    // scene_->load_material(new Material());
+    // scene_->load_material(new Material(TEXTURES_PATH "brick_wall_texture.png"));
+    // scene_->load_mesh(new Mesh(MODELS_PATH "suzanne.obj"));
+    // scene_->get_meshes()[0]->set_materials({scene_->get_materials()[1]});
 
-    Shader shader({SHADERS_PATH "vertex.vert", SHADERS_PATH "fragment.frag"});
-    shader.use();
+    scene_->load_materials(MATERIALS_PATH, TEXTURES_PATH);
+    scene_->load_meshes(MODELS_PATH);
+
+    shader_ = new Shader({SHADERS_PATH "vertex.vert", SHADERS_PATH "fragment.frag"});
+    shader_->use();
 
     glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
+    glEnable(GL_CULL_FACE);
 
     // limit fps
     const double TARGET_FPS = 1.0;
@@ -73,6 +91,7 @@ void Application::run() {
     double currentTime = glfwGetTime();
     double deltaTime = currentTime - lastFrameTime;
 
+    Logger::debug("GLFW WindowShouldClose loop start");
     while (!glfwWindowShouldClose(window_)) {
         currentTime = glfwGetTime();
         deltaTime = currentTime - lastFrameTime;
@@ -85,11 +104,15 @@ void Application::run() {
         render(window_);
         glfwPollEvents();
     }
+    Logger::debug("GLFW WindowShouldClose loop end");
 }
 
-void Application::framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+void Application::framebuffer_size_callback(GLFWwindow* window, GLsizei width, GLsizei height) {
     glViewport(0, 0, width, height);
-    render(window);
+    Application* application = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
+    if (application != nullptr) {
+        application->render(window);
+    }
 }
 
 void Application::process_input(GLFWwindow* window) {
@@ -98,11 +121,11 @@ void Application::process_input(GLFWwindow* window) {
     }
 }
 
-void Application::render(GLFWwindow* window) {
+void Application::render(GLFWwindow* window) const {
     glClear(GL_COLOR_BUFFER_BIT);
 
     process_input(window);
-    scene.draw_meshes();
+    scene_->draw_meshes(shader_);
 
     glfwSwapBuffers(window);
 }

@@ -13,8 +13,8 @@ void MeshBuilder::add_triangle(vec3<GLfloat> v1, vec3<GLfloat> v2, vec3<GLfloat>
     this->add_triangle(v1, v2, v3, vt1, vt2, vt3);
 }
 
-void MeshBuilder::add_triangle( vec3<GLfloat> v1, vec3<GLfloat> v2, vec3<GLfloat> v3, 
-                                vec2<GLfloat> vt1, vec2<GLfloat> vt2, vec2<GLfloat> vt3) {
+void MeshBuilder::add_triangle(vec3<GLfloat> v1, vec3<GLfloat> v2, vec3<GLfloat> v3,
+                               vec2<GLfloat> vt1, vec2<GLfloat> vt2, vec2<GLfloat> vt3) {
     GLuint count = (GLuint)vertex_positions_.size();
 
     vertex_positions_.push_back(v1);
@@ -43,10 +43,10 @@ void MeshBuilder::add_quad(vec3<GLfloat> v1, vec3<GLfloat> v2, vec3<GLfloat> v3,
     this->add_quad(v1, v2, v3, v4, vt1, vt2, vt3, vt4);
 }
 
-void MeshBuilder::add_quad( vec3<GLfloat> v1, vec3<GLfloat> v2, vec3<GLfloat> v3, vec3<GLfloat> v4, 
-                            vec2<GLfloat> vt1, vec2<GLfloat> vt2, vec2<GLfloat> vt3, vec2<GLfloat> vt4) {
+void MeshBuilder::add_quad(vec3<GLfloat> v1, vec3<GLfloat> v2, vec3<GLfloat> v3, vec3<GLfloat> v4,
+                           vec2<GLfloat> vt1, vec2<GLfloat> vt2, vec2<GLfloat> vt3, vec2<GLfloat> vt4) {
     GLuint count = (GLuint)vertex_positions_.size();
-    
+
     vertex_positions_.push_back(v1);
     vertex_positions_.push_back(v2);
     vertex_positions_.push_back(v3);
@@ -71,8 +71,8 @@ void MeshBuilder::add_quad( vec3<GLfloat> v1, vec3<GLfloat> v2, vec3<GLfloat> v3
     vertex_indices_.push_back(count + 3);
 }
 
-Mesh MeshBuilder::build() {
-    Mesh mesh(vertex_positions_, vertex_textures_, vertex_normals_, vertex_indices_);
+const Mesh* MeshBuilder::build() {
+    const Mesh* mesh = new Mesh(vertex_positions_, vertex_textures_, vertex_normals_, vertex_indices_);
     vertex_positions_.clear();
     vertex_textures_.clear();
     vertex_normals_.clear();

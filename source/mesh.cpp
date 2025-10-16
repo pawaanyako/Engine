@@ -1,97 +1,152 @@
+#include <logger.h>
 #include <mesh.h>
 
 #include <fstream>
 #include <sstream>
-#include <thread>
 
 Mesh::Mesh() {
-    VAO_ = 0;
-    VBO_ = 0;
-    EBO_ = 0;
+    Logger::debug("Mesh ctr()");
 };
 
-Mesh::Mesh(const std::string& filepath) {
-    VAO_ = 0;
-    VBO_ = 0;
-    EBO_ = 0;
-    if (filepath.find(".obj") != std::string::npos) {
-        parse_obj(filepath);
-        generate_vertices();
-    }
-};
+// Mesh::Mesh(const std::string& filepath) {
+//     Logger::debug("Mesh ctr(filepath) \"" + filepath + "\"");
+//     VAO_ = 0;
+//     VBO_ = 0;
+//     EBO_ = 0;
+//     if (filepath.find(".obj") != std::string::npos) {
+//         parse_obj(filepath);
+//         generate_vertices();
+//         bind_vao_vbo_ebo();
+//     }
+// };
 
 Mesh::Mesh(std::vector<vec3<GLfloat>> vertex_positions,
            std::vector<vec2<GLfloat>> vertex_textures,
            std::vector<vec3<GLfloat>> vertex_normals,
            std::vector<GLuint> vertex_indices) {
-    VAO_ = 0;
-    VBO_ = 0;
-    EBO_ = 0;
+    Logger::debug("Mesh ctr(vector, vector, vector, vector indices)");
     vertex_positions_ = vertex_positions;
     vertex_textures_ = vertex_textures;
     vertex_normals_ = vertex_normals;
     vertex_indices_ = vertex_indices;
     generate_vertices();
+    bind_vao_vbo_ebo();
+}
+
+Mesh::Mesh(std::string name,
+           std::vector<vec3<GLfloat>> vertex_positions,
+           std::vector<vec2<GLfloat>> vertex_textures,
+           std::vector<vec3<GLfloat>> vertex_normals,
+           std::vector<Face> faces,
+           std::vector<SubMesh> submeshes) {
+    Logger::debug("Mesh ctr(string, vector, vector, vector, vector faces, vector) - name: " + name);
+    name_ = name;
+    vertex_positions_ = vertex_positions;
+    vertex_textures_ = vertex_textures;
+    vertex_normals_ = vertex_normals;
+    faces_ = faces;
+    submeshes_ = submeshes;
+    generate_vertices();
+    bind_vao_vbo_ebo();
 }
 
 Mesh::~Mesh() {
     if (VAO_ != 0) {
         glDeleteVertexArrays(1, &VAO_);
+        VAO_ = 0;
     }
     if (VBO_ != 0) {
         glDeleteBuffers(1, &VBO_);
+        VBO_ = 0;
     }
     if (EBO_ != 0) {
         glDeleteBuffers(1, &EBO_);
+        EBO_ = 0;
     }
+    Logger::debug("Mesh is deleted from scene");
 };
 
-void Mesh::draw() const {
+void Mesh::draw(Shader* shader) const {
     glBindVertexArray(VAO_);
-    glDrawElements(GL_TRIANGLES, (GLsizei)vertex_indices_.size(), GL_UNSIGNED_INT, 0);
+    for (auto&& submesh : submeshes_) {
+        glBindTexture(GL_TEXTURE_2D, submesh.materials[0]);
+        glDrawElements(GL_TRIANGLES, (GLsizei)submesh.index_count, GL_UNSIGNED_INT, (const void*)(uintptr_t)(submesh.index_start * sizeof(GLuint)));
+    }
+    // glDrawElements(GL_TRIANGLES, (GLsizei)vertex_indices_.size(), GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
+    glBindTexture(GL_TEXTURE_2D, 0);
 }
 
-void Mesh::parse_obj(const std::string& filepath) {
-    std::ifstream file(filepath);
-    if (!file) {
-        throw std::runtime_error("Failed to open obj file: " + filepath);
-    }
-    std::string line;
-    while (std::getline(file, line)) {
-        std::vector<std::string> words;
-        std::stringstream ss(line);
-        std::string word;
-        while (ss >> word) {
-            words.push_back(word);
-        }
-        if (words.size() == 0)
-            continue;
-        if (words[0] == "v") {
-            vertex_positions_.push_back({std::stof(words[1]), std::stof(words[2]), std::stof(words[3])});
-        } else if (words[0] == "vt") {
-            vertex_textures_.push_back({std::stof(words[1]), std::stof(words[2])});
-        } else if (words[0] == "vn") {
-            vertex_normals_.push_back({std::stof(words[1]), std::stof(words[2]), std::stof(words[3])});
-        } else if (words[0] == "f") {
-            Face face;
-            for (auto&& word : words) {
-                if (word == "f")
-                    continue;
-                else {
-                    std::stringstream ss2(word);
-                    std::string token;
-                    char delimiter = '/';
-                    while (std::getline(ss2, token, delimiter)) {
-                        face.face_indices.push_back(std::stoul(token));
-                    }
-                }
-            }
-            faces_.push_back(face);
+void Mesh::set_materials(std::vector<Material*> materials) {
+    Logger::debug("Mesh set_materials - submeshes size: " + std::to_string(submeshes_.size()) + " materials size: " + std::to_string(materials.size()));
+    for (auto&& submesh : submeshes_) {
+        for (auto&& material : materials) {
+            submesh.materials.push_back(material->get_id());
         }
     }
-    file.close();
 }
+
+// void Mesh::parse_obj(const std::string& filepath) {
+//     Logger::debug("Mesh parse_obj - name = " + name_);
+
+//     std::ifstream file(filepath);
+//     if (!file) {
+//         throw std::runtime_error("Failed to open obj file: " + filepath);
+//     }
+
+//     auto parse_face_indices = [](const std::string& token) {
+//         std::vector<GLuint> indices;
+//         std::stringstream ss(token);
+//         std::string part;
+//         while (std::getline(ss, part, '/')) {
+//             if (!part.empty())
+//                 indices.push_back(std::stoul(part));
+//         }
+//         return indices;
+//     };
+
+//     std::string line;
+//     while (std::getline(file, line)) {
+//         std::stringstream ss(line);
+//         std::string keyword;
+//         ss >> keyword;
+//         if (keyword.empty())
+//             continue;
+
+//         if (keyword == "mtllib") {
+//             std::string mtl_file;
+//             ss >> mtl_file;
+//             Logger::debug("mtl_file = " + mtl_file);
+//         } else if (keyword == "o") {
+//             ss >> name_;
+//         } else if (keyword == "v") {
+//             GLfloat x, y, z;
+//             ss >> x >> y >> z;
+//             vertex_positions_.emplace_back(x, y, z);
+//         } else if (keyword == "vt") {
+//             GLfloat u, v;
+//             ss >> u >> v;
+//             vertex_textures_.emplace_back(u, v);
+//         } else if (keyword == "vn") {
+//             GLfloat nx, ny, nz;
+//             ss >> nx >> ny >> nz;
+//             vertex_normals_.emplace_back(nx, ny, nz);
+//         } else if (keyword == "usemtl") {
+//             std::string material;
+//             ss >> material;
+//             Logger::debug("usemtl = " + material);
+//         } else if (keyword == "f") {
+//             Face face;
+//             std::string vert;
+//             while (ss >> vert) {
+//                 std::vector<GLuint> indices = parse_face_indices(vert);
+//                 face.face_indices.insert(face.face_indices.end(), indices.begin(), indices.end());
+//             }
+//             faces_.push_back(face);
+//         }
+//     }
+//     file.close();
+// }
 
 void Mesh::generate_vertices() {
     if (faces_.size() > 0) {
@@ -127,9 +182,12 @@ void Mesh::generate_vertices() {
             vertices_.push_back(vertex);
         }
     }
+    Logger::debug("Mesh generate_vertices - vertices_count: " + std::to_string(vertices_.size()) +
+                  " vertex_indices.size(): " + std::to_string(vertex_indices_.size()) +
+                  " triangle_count: " + std::to_string(vertex_indices_.size() / 3));
 }
 
-void Mesh::generate_vao_vbo_ebo() {
+void Mesh::bind_vao_vbo_ebo() {
     glGenVertexArrays(1, &VAO_);
     glBindVertexArray(VAO_);
 
@@ -151,4 +209,5 @@ void Mesh::generate_vao_vbo_ebo() {
     glEnableVertexAttribArray(2);
 
     glBindVertexArray(0);
+    Logger::debug("Mesh bind_vao_vbo_ebo - VAO: " + std::to_string(VAO_) + " VBO: " + std::to_string(VBO_) + " EBO: " + std::to_string(EBO_));
 }

@@ -1,14 +1,17 @@
+#include <logger.h>
+#include <shader.h>
+
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
-#include <shader.h>
-
 Shader::Shader(const std::vector<std::string>& shader_filepaths) {
+    Logger::debug("Shader ctr()");
     std::vector<GLuint> shaders;
     shaders.reserve(shader_filepaths.size());
 
-    for (const std::string& filepath : shader_filepaths) {
+    for (auto&& filepath : shader_filepaths) {
+        Logger::debug("Shader module path \"" + filepath + "\"");
         GLenum type = detect_shader_type(filepath);
         const std::string code = read_shader_source(filepath);
         GLuint shader_id = compile_shader(type, code);
@@ -16,26 +19,30 @@ Shader::Shader(const std::vector<std::string>& shader_filepaths) {
     }
 
     program_id_ = glCreateProgram();
-    for (GLuint shader_id : shaders) {
+    for (auto&& shader_id : shaders) {
         glAttachShader(program_id_, shader_id);
     }
     glLinkProgram(program_id_);
 
     check_link_errors(program_id_);
 
-    for (GLuint shader_id : shaders) {
+    for (auto&& shader_id : shaders) {
         glDeleteShader(shader_id);
     }
+
+    Logger::debug("Shader is loaded");
 }
 
 Shader::~Shader() {
     if (program_id_ != 0) {
         glDeleteProgram(program_id_);
     }
+    Logger::debug("Shader is deleted");
 }
 
 void Shader::use() const {
     glUseProgram(program_id_);
+    Logger::debug("Shader is used");
 }
 
 GLenum Shader::detect_shader_type(const std::string& filepath) {

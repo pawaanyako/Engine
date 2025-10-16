@@ -6,13 +6,12 @@
 
 class Model {
 public:
-    Mesh mesh;
+    Mesh* mesh;
 
     Model();
     ~Model();
 
 private:
-
 };
 
 #endif
