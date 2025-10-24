@@ -5,24 +5,12 @@
 #include <sstream>
 
 Mesh::Mesh() {
-    Logger::debug("Mesh ctr()");
+    Logger::debug("Mesh default ctr()");
 };
 
-// Mesh::Mesh(const std::string& filepath) {
-//     Logger::debug("Mesh ctr(filepath) \"" + filepath + "\"");
-//     VAO_ = 0;
-//     VBO_ = 0;
-//     EBO_ = 0;
-//     if (filepath.find(".obj") != std::string::npos) {
-//         parse_obj(filepath);
-//         generate_vertices();
-//         bind_vao_vbo_ebo();
-//     }
-// };
-
-Mesh::Mesh(std::vector<vec3<GLfloat>> vertex_positions,
-           std::vector<vec2<GLfloat>> vertex_textures,
-           std::vector<vec3<GLfloat>> vertex_normals,
+Mesh::Mesh(std::vector<glm::vec3> vertex_positions,
+           std::vector<glm::vec2> vertex_textures,
+           std::vector<glm::vec3> vertex_normals,
            std::vector<GLuint> vertex_indices) {
     Logger::debug("Mesh ctr(vector, vector, vector, vector indices)");
     vertex_positions_ = vertex_positions;
@@ -34,12 +22,12 @@ Mesh::Mesh(std::vector<vec3<GLfloat>> vertex_positions,
 }
 
 Mesh::Mesh(std::string name,
-           std::vector<vec3<GLfloat>> vertex_positions,
-           std::vector<vec2<GLfloat>> vertex_textures,
-           std::vector<vec3<GLfloat>> vertex_normals,
+           std::vector<glm::vec3> vertex_positions,
+           std::vector<glm::vec2> vertex_textures,
+           std::vector<glm::vec3> vertex_normals,
            std::vector<Face> faces,
            std::vector<SubMesh> submeshes) {
-    Logger::debug("Mesh ctr(string, vector, vector, vector, vector faces, vector) - name: " + name);
+    Logger::debug("Mesh ctr(name, vertex_positions, vertex_textures, vertex_normals, faces, submeshes) - name: " + name);
     name_ = name;
     vertex_positions_ = vertex_positions;
     vertex_textures_ = vertex_textures;
@@ -66,115 +54,36 @@ Mesh::~Mesh() {
     Logger::debug("Mesh is deleted from scene");
 };
 
-void Mesh::draw(Shader* shader) const {
+void Mesh::draw(const std::unique_ptr<Shader>& shader) const {
     glBindVertexArray(VAO_);
     for (auto&& submesh : submeshes_) {
         glBindTexture(GL_TEXTURE_2D, submesh.materials[0]);
         glDrawElements(GL_TRIANGLES, (GLsizei)submesh.index_count, GL_UNSIGNED_INT, (const void*)(uintptr_t)(submesh.index_start * sizeof(GLuint)));
     }
-    // glDrawElements(GL_TRIANGLES, (GLsizei)vertex_indices_.size(), GL_UNSIGNED_INT, 0);
     glBindVertexArray(0);
     glBindTexture(GL_TEXTURE_2D, 0);
 }
-
-void Mesh::set_materials(std::vector<Material*> materials) {
-    Logger::debug("Mesh set_materials - submeshes size: " + std::to_string(submeshes_.size()) + " materials size: " + std::to_string(materials.size()));
-    for (auto&& submesh : submeshes_) {
-        for (auto&& material : materials) {
-            submesh.materials.push_back(material->get_id());
-        }
-    }
-}
-
-// void Mesh::parse_obj(const std::string& filepath) {
-//     Logger::debug("Mesh parse_obj - name = " + name_);
-
-//     std::ifstream file(filepath);
-//     if (!file) {
-//         throw std::runtime_error("Failed to open obj file: " + filepath);
-//     }
-
-//     auto parse_face_indices = [](const std::string& token) {
-//         std::vector<GLuint> indices;
-//         std::stringstream ss(token);
-//         std::string part;
-//         while (std::getline(ss, part, '/')) {
-//             if (!part.empty())
-//                 indices.push_back(std::stoul(part));
-//         }
-//         return indices;
-//     };
-
-//     std::string line;
-//     while (std::getline(file, line)) {
-//         std::stringstream ss(line);
-//         std::string keyword;
-//         ss >> keyword;
-//         if (keyword.empty())
-//             continue;
-
-//         if (keyword == "mtllib") {
-//             std::string mtl_file;
-//             ss >> mtl_file;
-//             Logger::debug("mtl_file = " + mtl_file);
-//         } else if (keyword == "o") {
-//             ss >> name_;
-//         } else if (keyword == "v") {
-//             GLfloat x, y, z;
-//             ss >> x >> y >> z;
-//             vertex_positions_.emplace_back(x, y, z);
-//         } else if (keyword == "vt") {
-//             GLfloat u, v;
-//             ss >> u >> v;
-//             vertex_textures_.emplace_back(u, v);
-//         } else if (keyword == "vn") {
-//             GLfloat nx, ny, nz;
-//             ss >> nx >> ny >> nz;
-//             vertex_normals_.emplace_back(nx, ny, nz);
-//         } else if (keyword == "usemtl") {
-//             std::string material;
-//             ss >> material;
-//             Logger::debug("usemtl = " + material);
-//         } else if (keyword == "f") {
-//             Face face;
-//             std::string vert;
-//             while (ss >> vert) {
-//                 std::vector<GLuint> indices = parse_face_indices(vert);
-//                 face.face_indices.insert(face.face_indices.end(), indices.begin(), indices.end());
-//             }
-//             faces_.push_back(face);
-//         }
-//     }
-//     file.close();
-// }
 
 void Mesh::generate_vertices() {
     if (faces_.size() > 0) {
         for (auto&& face : faces_) {
             GLuint vertex_count = static_cast<GLuint>(vertices_.size());
-            size_t face_size = face.face_indices.size() / 3;
-            for (size_t i = 0; i < face_size; i++) {
+            size_t face_vert_count = face.face_indices.size() / 3;
+            for (size_t i = 0; i < face_vert_count; ++i) {
                 Vertex vertex = {
                     vertex_positions_[face.face_indices[i * 3 + 0] - 1],
                     vertex_textures_[face.face_indices[i * 3 + 1] - 1],
                     vertex_normals_[face.face_indices[i * 3 + 2] - 1]};
                 vertices_.push_back(vertex);
             }
-            if (face_size == 3) {
-                vertex_indices_.push_back(vertex_count + 0);
-                vertex_indices_.push_back(vertex_count + 1);
-                vertex_indices_.push_back(vertex_count + 2);
-            } else if (face_size == 4) {
-                vertex_indices_.push_back(vertex_count + 0);
-                vertex_indices_.push_back(vertex_count + 1);
-                vertex_indices_.push_back(vertex_count + 2);
-                vertex_indices_.push_back(vertex_count + 0);
-                vertex_indices_.push_back(vertex_count + 2);
-                vertex_indices_.push_back(vertex_count + 3);
+            for (size_t i = 0; i < face_vert_count - 2; ++i) {
+                vertex_indices_.push_back(vertex_count + static_cast<GLuint>(0));
+                vertex_indices_.push_back(vertex_count + static_cast<GLuint>(i + 1));
+                vertex_indices_.push_back(vertex_count + static_cast<GLuint>(i + 2));
             }
         }
     } else {
-        for (size_t i = 0; i < vertex_positions_.size(); i++) {
+        for (size_t i = 0; i < vertex_positions_.size(); ++i) {
             Vertex vertex = {
                 vertex_positions_[i],
                 vertex_textures_[i],

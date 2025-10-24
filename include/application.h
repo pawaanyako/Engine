@@ -13,8 +13,8 @@ public:
 
 private:
     GLFWwindow* window_ = nullptr;
-    Scene* scene_ = nullptr;
-    Shader* shader_ = nullptr;
+    std::unique_ptr<Scene> scene_;
+    std::unique_ptr<Shader> shader_;
 
     void static framebuffer_size_callback(GLFWwindow* window, GLsizei width, GLsizei height);
     void static process_input(GLFWwindow* window);

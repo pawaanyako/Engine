@@ -13,6 +13,7 @@
 #include <iostream>
 
 Application::Application(int width, int height, const char* title) {
+    Logger::debug("Application ctr(width, height, title)");
     if (!glfwInit()) {
         throw std::runtime_error("Failed to initialize GLFW");
     }
@@ -51,40 +52,38 @@ Application::~Application() {
         glfwDestroyWindow(window_);
         glfwTerminate();
     }
-    if (scene_ != nullptr) {
-        delete scene_;
-    }
-    if (shader_ != nullptr) {
-        delete shader_;
-    }
 }
 
 void Application::run() {
-    MeshBuilder mesh_builder;
-    scene_ = new Scene();
-    // mesh_builder.add_triangle(v1, v2, v3);
-    mesh_builder.add_quad({-0.5f, 0.5f, -1.0f},
-                          {0.5f, 0.5f, -0.7f},
-                          {0.5f, -0.5f, 0.3f},
-                          {-0.5f, -0.5f, 1.0f});
+    scene_ = std::make_unique<Scene>();
 
-    // scene_->load_mesh(mesh_builder.build());
-    // scene_->load_material(new Material());
-    // scene_->load_material(new Material(TEXTURES_PATH "brick_wall_texture.png"));
-    // scene_->load_mesh(new Mesh(MODELS_PATH "suzanne.obj"));
-    // scene_->get_meshes()[0]->set_materials({scene_->get_materials()[1]});
+    // MeshBuilder mesh_builder;
+    // mesh_builder.add_quad({-0.5f, 0.5f, -1.0f},
+    //                       {0.5f, 0.5f, -0.7f},
+    //                       {0.5f, -0.5f, 0.3f},
+    //                       {-0.5f, -0.5f, 1.0f});
 
     scene_->load_materials(MATERIALS_PATH, TEXTURES_PATH);
     scene_->load_meshes(MODELS_PATH);
 
-    shader_ = new Shader({SHADERS_PATH "vertex.vert", SHADERS_PATH "fragment.frag"});
+    shader_ = std::make_unique<Shader>(std::vector<std::string>{SHADERS_PATH "vertex.vert", SHADERS_PATH "fragment.frag"});
     shader_->use();
+
+    glm::mat4 transformation = glm::mat4(1.0f);
+    transformation = glm::translate(transformation, glm::vec3(0.0f, 0.0f, 0.0f));
+    transformation = glm::rotate(transformation, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    float a = 2.0f;
+    transformation = glm::scale(transformation, glm::vec3(1.0f / a, 1.0f / a, 1.0f / a));
 
     glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
     glEnable(GL_CULL_FACE);
+    glFrontFace(GL_CW);
+    glEnable(GL_DEPTH_TEST);
+    // glEnable(GL_BLEND);
+    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
     // limit fps
-    const double TARGET_FPS = 1.0;
+    const double TARGET_FPS = 60.0;
     const double FRAME_TIME = 1.0 / TARGET_FPS;
     double lastFrameTime = 0.0;
 
@@ -100,6 +99,10 @@ void Application::run() {
         }
         lastFrameTime = currentTime;
         // end limit fps
+
+        transformation = glm::rotate(transformation, (GLfloat)deltaTime * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        GLuint transformation_location = glGetUniformLocation(shader_->get_program_id(), "transformation");
+        glUniformMatrix4fv(transformation_location, 1, GL_FALSE, glm::value_ptr(transformation));
 
         render(window_);
         glfwPollEvents();
@@ -122,7 +125,7 @@ void Application::process_input(GLFWwindow* window) {
 }
 
 void Application::render(GLFWwindow* window) const {
-    glClear(GL_COLOR_BUFFER_BIT);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
     process_input(window);
     scene_->draw_meshes(shader_);

@@ -6,9 +6,11 @@
 
 class Shader {
 public:
+    Shader();
     Shader(const std::vector<std::string>& shader_filepaths);
     ~Shader();
 
+    const GLuint get_program_id() const;
     void use() const;
 
 private:

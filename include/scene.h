@@ -10,25 +10,25 @@ public:
     Scene();
     ~Scene();
 
-    const std::vector<Mesh*>& get_meshes() const;
-    const std::vector<Material*>& get_materials() const;
+    const std::vector<std::unique_ptr<Material>>& get_materials() const;
+    const std::vector<std::unique_ptr<Mesh>>& get_meshes() const;
 
     void load_materials(const std::string& mtl_directory_path, const std::string& textures_directory_path);
     void load_meshes(const std::string& models_directory_path);
 
-    void draw_meshes(Shader* shader) const;
+    void draw_meshes(const std::unique_ptr<Shader>& shader) const;
 
 private:
-    std::vector<Mesh*> meshes_;
-    std::vector<Material*> materials_;
+    std::vector<std::unique_ptr<Material>> materials_;
+    std::vector<std::unique_ptr<Mesh>> meshes_;
 
     std::vector<std::string> get_file_names(const std::string& directory_path) const;
 
     void parse_mtl(const std::string& filepath, const std::string& textures_directory_path);
     void parse_obj(const std::string& filepath);
 
-    void load_material(Material* material);
-    void load_mesh(Mesh* mesh);
+    void load_material(std::unique_ptr<Material> material);
+    void load_mesh(std::unique_ptr<Mesh> mesh);
 };
 
 #endif

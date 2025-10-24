@@ -5,8 +5,12 @@
 #include <iostream>
 #include <sstream>
 
+Shader::Shader() {
+    Logger::debug("Shader default ctr()");
+}
+
 Shader::Shader(const std::vector<std::string>& shader_filepaths) {
-    Logger::debug("Shader ctr()");
+    Logger::debug("Shader ctr(shader_filepaths)");
     std::vector<GLuint> shaders;
     shaders.reserve(shader_filepaths.size());
 
@@ -38,6 +42,10 @@ Shader::~Shader() {
         glDeleteProgram(program_id_);
     }
     Logger::debug("Shader is deleted");
+}
+
+const GLuint Shader::get_program_id() const {
+    return program_id_;
 }
 
 void Shader::use() const {

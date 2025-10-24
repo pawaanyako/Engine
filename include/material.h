@@ -15,7 +15,6 @@ public:
 private:
     std::string name_;
     GLuint id_;
-    std::string type_;
     std::string map_Kd_;
 
     void bind_texture();

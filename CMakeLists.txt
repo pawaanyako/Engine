@@ -29,17 +29,6 @@ else()
     set(GLM_LIB glm)
 endif()
 
-find_path(GLI_INCLUDE_DIR gli/gli.hpp)
-
-if(NOT GLI_INCLUDE_DIR)
-    message(STATUS "GLI not found in the system - build from libraries")
-    set(GLI_INCLUDE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/libraries/gli)
-endif()
-
-add_library(gli INTERFACE)
-target_include_directories(gli INTERFACE ${GLI_INCLUDE_DIR})
-set(GLI_LIB gli)
-
 file(GLOB SOURCES "source/*.cpp")
 
 add_executable(Engine

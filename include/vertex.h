@@ -3,14 +3,19 @@
 
 #include <config.h>
 #include <maths.h>
+#include <string>
 
 struct Vertex {
-    vec3<GLfloat> vertex_position;
-    vec2<GLfloat> vertex_texture;
-    vec3<GLfloat> vertex_normal;
+    glm::vec3 vertex_position;
+    glm::vec2 vertex_texture;
+    glm::vec3 vertex_normal;
+
+    std::string to_string(Vertex v) const {
+        return "v:" + glm::to_string(v.vertex_position) + ", vt: " + glm::to_string(v.vertex_texture) + ", vn: " + glm::to_string(v.vertex_normal);
+    }
 
     friend std::ostream& operator<<(std::ostream& os, const Vertex& v) {
-        os << "v = " << v.vertex_position << ", vt = " << v.vertex_texture << ", vn = " << v.vertex_normal;
+        os << "v: " << glm::to_string(v.vertex_position) << ", vt: " << glm::to_string(v.vertex_texture) << ", vn: " << glm::to_string(v.vertex_normal);
         return os;
     }
 };

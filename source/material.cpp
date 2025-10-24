@@ -5,13 +5,12 @@
 #include "stb/stb_image.h"
 
 Material::Material() {
-
+    Logger::debug("Material default ctr()");
 };
 
 Material::Material(const std::string& name, const std::string& map_Kd) {
-    Logger::debug("Material ctr(map_Kd) name: " + name + " map_Kd: \"" + map_Kd + "\"");
+    Logger::debug("Material ctr(name, map_Kd) name: " + name + " map_Kd: \"" + map_Kd + "\"");
     name_ = name;
-    type_ = "diffuse";
     map_Kd_ = map_Kd;
     bind_texture();
 };
