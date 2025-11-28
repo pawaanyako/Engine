@@ -71,8 +71,8 @@ void MeshBuilder::add_quad(glm::vec3 v1, glm::vec3 v2, glm::vec3 v3, glm::vec3 v
     vertex_indices_.push_back(count + 3);
 }
 
-std::unique_ptr<Mesh> MeshBuilder::build() {
-    std::unique_ptr<Mesh> mesh = std::make_unique<Mesh>(vertex_positions_, vertex_textures_, vertex_normals_, vertex_indices_);
+std::shared_ptr<Mesh> MeshBuilder::build() {
+    std::shared_ptr<Mesh> mesh = std::make_shared<Mesh>(vertex_positions_, vertex_textures_, vertex_normals_, vertex_indices_);
     vertex_positions_.clear();
     vertex_textures_.clear();
     vertex_normals_.clear();

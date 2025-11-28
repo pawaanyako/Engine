@@ -1,64 +1,58 @@
-#ifndef MESH_H_
-#define MESH_H_
+#pragma once
 
 #include <config.h>
-#include <face.h>
 #include <material.h>
 #include <maths.h>
 #include <shader.h>
-#include <vertex.h>
 
-struct SubMesh {
-    GLuint index_start = 0;
-    GLuint index_count = 0;
-    std::vector<GLuint> materials;
+struct Face {
+    std::vector<GLuint> face_indices;
+};
+
+struct Vertex {
+    glm::vec3 vertex_position;
+    glm::vec2 vertex_texture;
+    glm::vec3 vertex_normal;
 
     std::string to_string() const {
-        std::string materials_str = "{ ";
-        for (size_t i = 0; i < materials.size(); ++i) {
-            materials_str += std::to_string(materials[i]);
-            if (i + 1 < materials.size()) {
-                materials_str += ", ";
-            }
-        }
-        materials_str += " }";
-        return "index_start: " + std::to_string(index_start) + ", index_count: " + std::to_string(index_count) + ", materials: " + materials_str;
+        return "v: " + glm::to_string(vertex_position) + ", vt: " + glm::to_string(vertex_texture) + ", vn: " + glm::to_string(vertex_normal);
+    }
+
+    friend std::ostream& operator<<(std::ostream& os, const Vertex& v) {
+        os << "v: " << glm::to_string(v.vertex_position) << ", vt: " << glm::to_string(v.vertex_texture) << ", vn: " << glm::to_string(v.vertex_normal);
+        return os;
     }
 };
 
 class Mesh {
 public:
-    Mesh();
-    Mesh(std::vector<glm::vec3> vertex_positions,
-         std::vector<glm::vec2> vertex_textures,
-         std::vector<glm::vec3> vertex_normals,
-         std::vector<GLuint> vertex_indices);
-    Mesh(std::string name,
-         std::vector<glm::vec3> vertex_positions,
-         std::vector<glm::vec2> vertex_textures,
-         std::vector<glm::vec3> vertex_normals,
-         std::vector<Face> faces,
-         std::vector<SubMesh> submeshes);
+    Mesh(const std::vector<glm::vec3>& vertex_positions,
+         const std::vector<glm::vec2>& vertex_textures,
+         const std::vector<glm::vec3>& vertex_normals,
+         const std::vector<GLuint>& vertex_indices);
+    Mesh(const std::string& name,
+         const std::vector<Vertex>& vertices,
+         const std::vector<GLuint>& vertex_indices,
+         GLuint material_id);
     ~Mesh();
 
-    void draw(const std::unique_ptr<Shader>& shader) const;
+    const std::string get_name() const;
+    const GLuint get_id() const;
+    const GLuint get_material_id() const;
+
+    void draw(const std::shared_ptr<Shader>& shader) const;
 
 private:
     std::string name_;
-    GLuint VAO_ = 0, VBO_ = 0, EBO_ = 0;
-
-    std::vector<glm::vec3> vertex_positions_;
-    std::vector<glm::vec2> vertex_textures_;
-    std::vector<glm::vec3> vertex_normals_;
-    std::vector<Face> faces_;
-
+    GLuint vao_ = 0, vbo_ = 0, ebo_ = 0;
     std::vector<Vertex> vertices_;
     std::vector<GLuint> vertex_indices_;
+    GLuint material_id_;
 
-    std::vector<SubMesh> submeshes_;
-
-    void generate_vertices();
+    void generate_vertices(const std::vector<glm::vec3>& vertex_positions,
+                           const std::vector<glm::vec2>& vertex_textures,
+                           const std::vector<glm::vec3>& vertex_normals,
+                           const std::vector<Face>& faces,
+                           const std::vector<GLuint>& vertex_indices);
     void bind_vao_vbo_ebo();
 };
-
-#endif

@@ -1,21 +1,12 @@
-#define MATERIALS_PATH "../../resources/materials/"
-#define MODELS_PATH "../../resources/models/"
-#define SHADERS_PATH "../../resources/shaders/"
-#define TEXTURES_PATH "../../resources/textures/"
-
 #include <application.h>
-#include <config.h>
-#include <logger.h>
-#include <mesh_builder.h>
-#include <scene.h>
+#include <fps_limiter.h>
 #include <shader.h>
 
-#include <iostream>
-
 Application::Application(int width, int height, const char* title) {
-    Logger::debug("Application ctr(width, height, title)");
+    Logger::debug("Application ctor(width, height, title)");
     if (!glfwInit()) {
-        throw std::runtime_error("Failed to initialize GLFW");
+        Logger::error("Failed to initialize GLFW");
+        return;
     }
     Logger::debug("GLFW initialization success");
 
@@ -29,15 +20,17 @@ Application::Application(int width, int height, const char* title) {
 
     window_ = glfwCreateWindow(width, height, title, nullptr, nullptr);
     if (window_ == nullptr) {
-        throw std::runtime_error("Failed to create GLFW window");
+        Logger::error("Failed to create GLFW window");
         glfwTerminate();
+        return;
     }
     Logger::debug("GLFW create window success");
     glfwMakeContextCurrent(window_);
 
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
-        throw std::runtime_error("Failed to initialize GLAD");
+        Logger::error("Failed to initialize GLAD");
         glfwTerminate();
+        return;
     }
     Logger::debug("GLAD initialization success");
 
@@ -45,6 +38,10 @@ Application::Application(int width, int height, const char* title) {
     glfwSetFramebufferSizeCallback(window_, framebuffer_size_callback);
     glfwGetFramebufferSize(window_, &width, &height);
     glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+
+    std::shared_ptr<Shader> shader = std::make_shared<Shader>(std::vector<std::string>{SHADERS_PATH "vertex.vert", SHADERS_PATH "fragment.frag"});
+    scene_.set_shader(shader);
+    scene_.assimp_parse_obj_files(MODELS_PATH);
 }
 
 Application::~Application() {
@@ -52,60 +49,45 @@ Application::~Application() {
         glfwDestroyWindow(window_);
         glfwTerminate();
     }
+    Logger::debug("Application dtor()");
 }
 
 void Application::run() {
-    scene_ = std::make_unique<Scene>();
-
-    // MeshBuilder mesh_builder;
-    // mesh_builder.add_quad({-0.5f, 0.5f, -1.0f},
-    //                       {0.5f, 0.5f, -0.7f},
-    //                       {0.5f, -0.5f, 0.3f},
-    //                       {-0.5f, -0.5f, 1.0f});
-
-    scene_->load_materials(MATERIALS_PATH, TEXTURES_PATH);
-    scene_->load_meshes(MODELS_PATH);
-
-    shader_ = std::make_unique<Shader>(std::vector<std::string>{SHADERS_PATH "vertex.vert", SHADERS_PATH "fragment.frag"});
-    shader_->use();
-
-    glm::mat4 transformation = glm::mat4(1.0f);
-    transformation = glm::translate(transformation, glm::vec3(0.0f, 0.0f, 0.0f));
-    transformation = glm::rotate(transformation, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    float a = 2.0f;
-    transformation = glm::scale(transformation, glm::vec3(1.0f / a, 1.0f / a, 1.0f / a));
-
     glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
     glEnable(GL_CULL_FACE);
     glFrontFace(GL_CW);
     glEnable(GL_DEPTH_TEST);
-    // glEnable(GL_BLEND);
-    // glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-    // limit fps
-    const double TARGET_FPS = 60.0;
-    const double FRAME_TIME = 1.0 / TARGET_FPS;
-    double lastFrameTime = 0.0;
+    scene_.get_shader().get()->use();
 
-    double currentTime = glfwGetTime();
-    double deltaTime = currentTime - lastFrameTime;
+    entt::entity root_entity = entity_managment_system_.create_entity_from_node(registry_, get_scene(), get_scene().get_root_node());
+    entity_managment_system_.set_root_entity(root_entity);
+    Logger::debug(entity_managment_system_.get_entity_hierarchy_tree(registry_, root_entity, 0));
+    entity_managment_system_.print_all_components_of_all_entities(registry_, root_entity);
+
+    float fps = 165.0f;
+    FPSLimiter fps_limiter(fps);
+
+    glm::mat4 transformation = glm::mat4(1.0f);
+    transformation = glm::translate(transformation, glm::vec3(0.0f, 0.0f, 0.0f));
+    // transformation = glm::rotate(transformation, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+    float a = 16.0f;
+    transformation = glm::scale(transformation, glm::vec3(1.0f / a, 1.0f / a, 1.0f / a));
 
     Logger::debug("GLFW WindowShouldClose loop start");
     while (!glfwWindowShouldClose(window_)) {
-        currentTime = glfwGetTime();
-        deltaTime = currentTime - lastFrameTime;
-        if (deltaTime < FRAME_TIME) {
-            glfwWaitEventsTimeout(FRAME_TIME - deltaTime);
-        }
-        lastFrameTime = currentTime;
-        // end limit fps
+        process_input(window_);
 
-        transformation = glm::rotate(transformation, (GLfloat)deltaTime * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        GLuint transformation_location = glGetUniformLocation(shader_->get_program_id(), "transformation");
+        float delta_time = 1.0f / fps;
+        transformation = glm::rotate(transformation, delta_time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        GLint transformation_location = glGetUniformLocation(scene_.get_shader()->get_program_id(), "transformation");
         glUniformMatrix4fv(transformation_location, 1, GL_FALSE, glm::value_ptr(transformation));
 
         render(window_);
+
         glfwPollEvents();
+
+        fps_limiter.limit();
     }
     Logger::debug("GLFW WindowShouldClose loop end");
 }
@@ -127,8 +109,7 @@ void Application::process_input(GLFWwindow* window) {
 void Application::render(GLFWwindow* window) const {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    process_input(window);
-    scene_->draw_meshes(shader_);
+    entity_managment_system_.draw_all_meshes_of_all_entities(registry_, entity_managment_system_.get_root_entity());
 
     glfwSwapBuffers(window);
 }

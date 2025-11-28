@@ -1,21 +1,16 @@
-#include <logger.h>
 #include <shader.h>
 
 #include <fstream>
 #include <iostream>
 #include <sstream>
 
-Shader::Shader() {
-    Logger::debug("Shader default ctr()");
-}
-
-Shader::Shader(const std::vector<std::string>& shader_filepaths) {
-    Logger::debug("Shader ctr(shader_filepaths)");
+Shader::Shader(const std::vector<std::string>& shaders_filepaths) {
+    Logger::debug("Shader ctor(shaders_filepaths)");
     std::vector<GLuint> shaders;
-    shaders.reserve(shader_filepaths.size());
+    shaders.reserve(shaders_filepaths.size());
 
-    for (auto&& filepath : shader_filepaths) {
-        Logger::debug("Shader module path \"" + filepath + "\"");
+    for (auto&& filepath : shaders_filepaths) {
+        Logger::debug("Shader module path \"", filepath, "\"");
         GLenum type = detect_shader_type(filepath);
         const std::string code = read_shader_source(filepath);
         GLuint shader_id = compile_shader(type, code);
@@ -41,7 +36,7 @@ Shader::~Shader() {
     if (program_id_ != 0) {
         glDeleteProgram(program_id_);
     }
-    Logger::debug("Shader is deleted");
+    Logger::debug("Shader dtor()");
 }
 
 const GLuint Shader::get_program_id() const {
@@ -60,13 +55,15 @@ GLenum Shader::detect_shader_type(const std::string& filepath) {
         return GL_FRAGMENT_SHADER;
     if (filepath.find(".geom") != std::string::npos)
         return GL_GEOMETRY_SHADER;
-    throw std::runtime_error("Unknown shader file extension: " + filepath);
+    Logger::error("Unknown shader file extension: ", filepath);
+    return 0;
 }
 
 const std::string Shader::read_shader_source(const std::string& filepath) {
     std::ifstream file(filepath);
     if (!file) {
-        throw std::runtime_error("Failed to open shader file: " + filepath);
+        Logger::error("Failed to open shader file: \"", filepath, "\"");
+        return "";
     }
     std::stringstream buffer;
     buffer << file.rdbuf();
@@ -91,7 +88,7 @@ void Shader::check_compile_errors(GLuint shader_id) {
     if (!success) {
         GLchar info_log[INFO_LOG_MAX_LENGTH];
         glGetShaderInfoLog(shader_id, INFO_LOG_MAX_LENGTH, nullptr, info_log);
-        throw std::runtime_error("Shader compilation error: " + std::string(info_log));
+        Logger::error("Shader compilation error: ", info_log);
     }
 }
 
@@ -101,6 +98,6 @@ void Shader::check_link_errors(GLuint program_id) {
     if (!success) {
         GLchar info_log[INFO_LOG_MAX_LENGTH];
         glGetProgramInfoLog(program_id, INFO_LOG_MAX_LENGTH, nullptr, info_log);
-        throw std::runtime_error("Program linking error: " + std::string(info_log));
+        Logger::error("Program linking error: ", info_log);
     }
 }

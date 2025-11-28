@@ -1,50 +1,50 @@
 cmake_minimum_required(VERSION 3.10)
-project(Engine)
+set(PROJECT_NAME "Engine")
+project(${PROJECT_NAME} LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 find_package(OpenGL REQUIRED)
+add_subdirectory(libraries/glfw)
+add_subdirectory(libraries/glm)
 
-find_package(glfw3 QUIET)
+set(ASSIMP_BUILD_ALL_IMPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ALL_EXPORTERS_BY_DEFAULT OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_OBJ_IMPORTER ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_MTL_IMPORTER ON CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_ASSIMP_TOOLS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_SAMPLES OFF CACHE BOOL "" FORCE)
+set(ASSIMP_BUILD_DOCS OFF CACHE BOOL "" FORCE)
+add_subdirectory(libraries/assimp)
+add_subdirectory(libraries/entt) 
 
-if(NOT glfw3_FOUND)
-    message(STATUS "GLFW not found in the system - build from libraries")
-    add_subdirectory(libraries/glfw)
-    set(GLFW_LIB glfw)
-else()
-    message(STATUS "Using the system GLFW")
-    set(GLFW_LIB glfw)
-endif()
+file(GLOB_RECURSE SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/source/*.cpp"
+)
 
-find_package(glm QUIET)
-
-if(NOT glm_FOUND)
-    message(STATUS "GLM not found in the system - build from libraries")
-    add_subdirectory(libraries/glm)
-    set(GLM_LIB glm)
-else()
-    message(STATUS "Using the system GLM")
-    set(GLM_LIB glm)
-endif()
-
-file(GLOB SOURCES "source/*.cpp")
-
-add_executable(Engine
+add_executable(${PROJECT_NAME}
     ${SOURCES}
     libraries/glad/glad.c
 )
 
-target_include_directories(Engine PRIVATE
-    libraries
-    include
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/libraries
 )
 
-target_link_libraries(Engine PRIVATE
-    glfw
-    ${GLFW_LIB}
-    ${GLM_LIB}
-    ${GLI_LIB}
+target_link_libraries(${PROJECT_NAME} PRIVATE
     OpenGL::GL
+    glfw
+    glm
+    assimp::assimp
+)
+
+set(RESOURCE_DIR ${CMAKE_SOURCE_DIR}/resources)
+add_custom_target(copy_resources ALL
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${RESOURCE_DIR}
+    ${CMAKE_CURRENT_BINARY_DIR}/resources
 )

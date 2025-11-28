@@ -1,13 +1,12 @@
-#ifndef SHADER_H_
-#define SHADER_H_
+#pragma once
+
 #define INFO_LOG_MAX_LENGTH 1024
 
 #include <config.h>
 
 class Shader {
 public:
-    Shader();
-    Shader(const std::vector<std::string>& shader_filepaths);
+    Shader(const std::vector<std::string>& shaders_filepaths);
     ~Shader();
 
     const GLuint get_program_id() const;
@@ -22,4 +21,3 @@ private:
     static void check_compile_errors(GLuint shader_id);
     static void check_link_errors(GLuint program_id);
 };
-#endif
