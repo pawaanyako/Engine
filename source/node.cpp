@@ -2,14 +2,14 @@
 #include <node.h>
 
 Node::Node(const std::string& name,
-           const std::weak_ptr<Node>& parent,
+           const std::shared_ptr<Node>& parent,
            const std::vector<GLuint>& mesh_ids,
            const std::vector<GLuint>& material_ids) {
     std::string parent_name;
-    if (std::shared_ptr<Node> locked_parent = parent.lock()) {
-        parent_name = locked_parent.get()->get_name();
-    }
-    Logger::debug("Node ctor(name, parent, mesh_ids, material_ids) = name: ", name, " parent_name: ", parent_name,
+    if (parent.get() != nullptr) {
+        parent_name = parent.get()->get_name();
+    };
+    Logger::debug("Node ctor(name, parent, mesh_ids, material_ids) - name: ", name, " parent_name: ", parent_name,
                   " mesh_ids.size(): ", mesh_ids.size(), " material_ids_.size(): ", material_ids.size());
     name_ = name;
     parent_ = parent;

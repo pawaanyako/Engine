@@ -9,7 +9,7 @@ class Scene {
 public:
     Scene::Scene() {
         Logger::debug("Scene ctor()");
-        root_node_ = std::make_shared<Node>("RootNode", std::weak_ptr<Node>(), std::vector<GLuint>(), std::vector<GLuint>());
+        root_node_ = std::make_shared<Node>("RootNode", std::shared_ptr<Node>(), std::vector<GLuint>(), std::vector<GLuint>());
     }
 
     Scene::~Scene() {
@@ -35,6 +35,11 @@ public:
     const std::shared_ptr<Node>& Scene::get_root_node() const {
         return root_node_;
     }
+
+    std::shared_ptr<Node> add_node(const std::string& name,
+                                   const std::shared_ptr<Node>& parent,
+                                   const std::vector<GLuint>& mesh_ids,
+                                   const std::vector<GLuint>& material_ids);
 
     void assimp_parse_obj_files(const std::string& models_directory_path);
     void assimp_load_nodes(const aiScene* ai_scene, const std::string& model_filepath);

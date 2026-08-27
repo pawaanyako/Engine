@@ -45,7 +45,7 @@ const GLuint Shader::get_program_id() const {
 
 void Shader::use() const {
     glUseProgram(program_id_);
-    Logger::debug("Shader is used");
+    // Logger::debug("Shader is used");
 }
 
 GLenum Shader::detect_shader_type(const std::string& filepath) {

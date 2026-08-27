@@ -11,8 +11,14 @@ struct NameComponent {
 
 struct TransformComponent {
     glm::vec3 position = glm::vec3(0.0f);
-    glm::quat rotation = glm::quat(0.0f, 0.0f, 0.0f, 1.0f);
+    glm::quat rotation = glm::quat(1.0f, 0.0f, 0.0f, 0.0f);
     glm::vec3 scale = glm::vec3(1.0f);
+};
+
+struct VelocityComponent {
+    glm::vec3 linear = glm::vec3(0.0f);
+    glm::vec3 angular = glm::vec3(0.0f);
+    glm::vec3 scale_change = glm::vec3(0.0f);
 };
 
 struct ParentComponent {
@@ -41,4 +47,15 @@ struct MaterialsComponent {
 struct RenderableComponent {
     bool visible = true;
     std::weak_ptr<Shader> shader;
+};
+
+struct CameraComponent {
+    float fov = 45.0f;
+    float near_plane = 0.1f;
+    float far_plane = 100.0f;
+    float radius = 5.0f;
+    float yaw = 0.0f;
+    float pitch = 0.0f;
+    float linear_sensitivity = 0.001f;
+    float angular_sensitivity = 0.1f;
 };

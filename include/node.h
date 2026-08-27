@@ -7,7 +7,7 @@
 class Node {
 public:
     Node(const std::string& name,
-         const std::weak_ptr<Node>& parent,
+         const std::shared_ptr<Node>& parent,
          const std::vector<GLuint>& mesh_ids,
          const std::vector<GLuint>& material_ids);
     ~Node();

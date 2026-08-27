@@ -30,24 +30,26 @@ public:
          const std::vector<glm::vec2>& vertex_textures,
          const std::vector<glm::vec3>& vertex_normals,
          const std::vector<GLuint>& vertex_indices);
-    Mesh(const std::string& name,
+    Mesh(GLuint id,
+         const std::string& name,
          const std::vector<Vertex>& vertices,
          const std::vector<GLuint>& vertex_indices,
-         GLuint material_id);
+         const std::shared_ptr<Material>& material);
     ~Mesh();
 
-    const std::string get_name() const;
+    const std::string& get_name() const;
     const GLuint get_id() const;
-    const GLuint get_material_id() const;
+    const std::weak_ptr<Material>& get_material() const;
 
     void draw(const std::shared_ptr<Shader>& shader) const;
 
 private:
+    GLuint id_;
     std::string name_;
     GLuint vao_ = 0, vbo_ = 0, ebo_ = 0;
     std::vector<Vertex> vertices_;
     std::vector<GLuint> vertex_indices_;
-    GLuint material_id_;
+    std::weak_ptr<Material> material_;
 
     void generate_vertices(const std::vector<glm::vec3>& vertex_positions,
                            const std::vector<glm::vec2>& vertex_textures,

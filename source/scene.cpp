@@ -52,13 +52,22 @@ std::vector<std::string> get_filepaths(const std::string& path) {
     return filepaths;
 }
 
+std::shared_ptr<Node> Scene::add_node(const std::string& name,
+                                      const std::shared_ptr<Node>& parent,
+                                      const std::vector<GLuint>& mesh_ids,
+                                      const std::vector<GLuint>& material_ids) {
+    std::shared_ptr<Node> new_node = std::make_shared<Node>(name, parent, mesh_ids, material_ids);
+    parent.get()->add_child(new_node);
+    return new_node;
+}
+
 void Scene::assimp_parse_obj_files(const std::string& models_directory_path) {
     Logger::debug("Pasring .obj files");
     std::vector<std::string> all_models_directories = get_directories(models_directory_path);
     for (auto&& model_directory : all_models_directories) {
         std::vector<std::string> filepaths = get_filepaths(model_directory);
         for (auto&& filepath : filepaths) {
-            if (filepath.find("pigeon3.obj") != std::string::npos) {
+            if (filepath.find(".obj") != std::string::npos) {
                 Assimp::Importer importer;
                 unsigned int flags = aiProcess_CalcTangentSpace |
                                      aiProcess_JoinIdenticalVertices |
@@ -98,30 +107,30 @@ std::shared_ptr<Node> Scene::assimp_load_node(const aiScene* ai_scene,
     std::vector<GLuint> mesh_ids;
     std::vector<GLuint> material_ids;
     aiString ai_node_name = ai_node->mName;
-    std::string node_name_string = ai_node_name.C_Str();
+    std::string node_name = ai_node_name.C_Str();
     for (size_t i = 0; i < ai_node->mNumMeshes; ++i) {
         aiMesh* ai_node_mesh = ai_scene->mMeshes[ai_node->mMeshes[i]];
         aiMaterial* ai_node_material = ai_scene->mMaterials[ai_node_mesh->mMaterialIndex];
 
-        aiString material_name;
-        if (aiReturn_SUCCESS != ai_node_material->Get(AI_MATKEY_NAME, material_name)) {
+        aiString ai_material_name;
+        if (aiReturn_SUCCESS != ai_node_material->Get(AI_MATKEY_NAME, ai_material_name)) {
             Logger::warn("Material has no name, using fallback");
             std::string model_name = std::filesystem::path(model_filepath).stem().string();
             for (size_t i = 0; i < ai_scene->mNumMaterials; ++i) {
                 if (ai_scene->mMaterials[i] == ai_node_material) {
-                    material_name = aiString(model_name + "_material_" + std::to_string(i));
+                    ai_material_name = aiString(model_name + "_material_" + std::to_string(i));
                     break;
                 }
             }
         }
-        std::string material_name_string = std::string(material_name.C_Str());
+        std::string material_name = std::string(ai_material_name.C_Str());
 
-        std::string mesh_name_string = node_name_string + "_" + material_name_string;
-        std::shared_ptr<Mesh> mesh = assimp_load_mesh(ai_scene, ai_node_mesh, mesh_name_string, material_name_string, model_filepath);
+        std::string mesh_name = node_name + "_" + std::to_string(i) + "_" + material_name;
+        std::shared_ptr<Mesh> mesh = assimp_load_mesh(ai_scene, ai_node_mesh, mesh_name, material_name, model_filepath);
         mesh_ids.push_back(mesh.get()->get_id());
-        material_ids.push_back(mesh.get()->get_material_id());
+        material_ids.push_back(mesh.get()->get_material().lock().get()->get_id());
     }
-    std::shared_ptr<Node> node = std::make_shared<Node>(node_name_string, parent_node, mesh_ids, material_ids);
+    std::shared_ptr<Node> node = std::make_shared<Node>(node_name, parent_node, mesh_ids, material_ids);
     Logger::debug("Loading node children, num_children = ", ai_node->mNumChildren);
     for (size_t i = 0; i < ai_node->mNumChildren; ++i) {
         node.get()->add_child(assimp_load_node(ai_scene, ai_node->mChildren[i], node, model_filepath));
@@ -131,19 +140,20 @@ std::shared_ptr<Node> Scene::assimp_load_node(const aiScene* ai_scene,
 
 std::shared_ptr<Mesh> Scene::assimp_load_mesh(const aiScene* ai_scene,
                                               const aiMesh* ai_mesh,
-                                              const std::string& mesh_name_string,
-                                              const std::string& material_name_string,
+                                              const std::string& mesh_name,
+                                              const std::string& material_name,
                                               const std::string& model_filepath) {
     Logger::debug("Loading mesh on scene");
 
-    if (meshes_.find(mesh_name_string) != meshes_.end()) {
-        Logger::debug("Mesh ", mesh_name_string, " is already loaded, skipping");
-        return meshes_[mesh_name_string];
+    if (meshes_.find(mesh_name) != meshes_.end()) {
+        Logger::debug("Mesh ", mesh_name, " is already loaded, skipping");
+        return meshes_[mesh_name];
     }
 
     std::vector<Vertex> vertices;
     std::vector<GLuint> indices;
 
+    vertices.reserve(ai_mesh->mNumVertices);
     for (size_t i = 0; i < ai_mesh->mNumVertices; ++i) {
         Vertex vertex;
         const aiVector3D& vertex_position = ai_mesh->mVertices[i];
@@ -163,31 +173,38 @@ std::shared_ptr<Mesh> Scene::assimp_load_mesh(const aiScene* ai_scene,
         vertices.push_back(vertex);
     }
 
+    indices.reserve(ai_mesh->mNumFaces * 3);
     for (size_t i = 0; i < ai_mesh->mNumFaces; i++) {
         aiFace face = ai_mesh->mFaces[i];
-        for (size_t j = 0; j < face.mNumIndices; j++)
+        for (size_t j = 0; j < face.mNumIndices; j++) {
             indices.push_back(face.mIndices[j]);
+        }
     }
 
     std::shared_ptr<Material> material = assimp_load_material(ai_scene,
                                                               ai_scene->mMaterials[ai_mesh->mMaterialIndex],
-                                                              material_name_string,
+                                                              material_name,
                                                               model_filepath);
-    GLuint material_id = material.get()->get_id();
 
-    meshes_[mesh_name_string] = std::make_shared<Mesh>(mesh_name_string,
-                                                       vertices,
-                                                       indices,
-                                                       material_id);
-    Logger::debug("Mesh ", mesh_name_string, " is loaded on scene");
-    return meshes_[mesh_name_string];
+    meshes_[mesh_name] = std::make_shared<Mesh>(static_cast<GLuint>(meshes_.size()),
+                                                mesh_name,
+                                                vertices,
+                                                indices,
+                                                material);
+    Logger::debug("Mesh ", mesh_name, " is loaded on scene");
+    return meshes_[mesh_name];
 }
 
 std::shared_ptr<Material> Scene::assimp_load_material(const aiScene* ai_scene,
                                                       const aiMaterial* ai_material,
-                                                      const std::string& material_name_string,
+                                                      const std::string& material_name,
                                                       const std::string& model_filepath) {
     Logger::debug("Loading material on scene");
+
+    if (materials_.find(material_name) != materials_.end()) {
+        Logger::debug("Material ", material_name, " is already loaded, skipping");
+        return materials_[material_name];
+    }
 
     auto convert_color = [](const aiColor3D& ai_color) {
         return glm::vec3(ai_color.r, ai_color.g, ai_color.b);
@@ -195,68 +212,65 @@ std::shared_ptr<Material> Scene::assimp_load_material(const aiScene* ai_scene,
 
     auto convert_type = [](const aiTextureType& ai_type) {
         switch (ai_type) {
-        case aiTextureType_AMBIENT:
-            return Ambient;
         case aiTextureType_DIFFUSE:
             return Diffuse;
         case aiTextureType_SPECULAR:
             return Specular;
+        case aiTextureType_AMBIENT:
+            return Ambient;
         default:
             return None;
         };
     };
 
-    auto get_textures_by_type = [&](const aiMaterial* ai_material, const aiTextureType& ai_type, const glm::vec3& color) {
+    const std::filesystem::path model_directory = std::filesystem::path(model_filepath).parent_path();
+
+    auto get_textures_by_type = [&](const aiMaterial* ai_material, const aiTextureType& ai_type, const aiColor3D& ai_color) {
         std::vector<Texture> textures;
+        const unsigned int count = ai_material->GetTextureCount(ai_type);
+        textures.reserve(count > 0 ? count : 1);
         for (size_t i = 0; i < ai_material->GetTextureCount(ai_type); ++i) {
-            Texture texture;
-            texture.type = convert_type(ai_type);
-            texture.color = color;
             aiString path;
-            ai_material->GetTexture(ai_type, static_cast<unsigned int>(i), &path);
-            texture.texture_map = (std::filesystem::path(model_filepath).parent_path() / path.C_Str()).string();
-            textures.push_back(texture);
+            if (ai_material->GetTexture(ai_type, static_cast<unsigned int>(i), &path) == aiReturn_SUCCESS) {
+                textures.emplace_back(Texture{
+                    0,
+                    convert_type(ai_type),
+                    convert_color(ai_color),
+                    (model_directory / path.C_Str()).string()});
+            }
         }
         if (textures.empty()) {
-            Texture texture;
-            texture.type = convert_type(ai_type);
-            texture.color = color;
-            texture.texture_map.clear();
-            textures.push_back(texture);
+            textures.emplace_back(Texture{
+                0,
+                convert_type(ai_type),
+                convert_color(ai_color),
+                ""});
         }
         return textures;
     };
 
-    if (materials_.find(material_name_string) != materials_.end()) {
-        Logger::debug("Material ", material_name_string, " is already loaded, skipping");
-        return materials_[material_name_string];
-    }
-
-    aiColor3D ka, kd, ks;
-    if (aiReturn_SUCCESS != ai_material->Get(AI_MATKEY_COLOR_AMBIENT, ka)) {
-        ka = aiColor3D(0.0f);
-    }
+    aiColor3D kd, ks, ka;
     if (aiReturn_SUCCESS != ai_material->Get(AI_MATKEY_COLOR_DIFFUSE, kd)) {
         kd = aiColor3D(0.0f);
     }
     if (aiReturn_SUCCESS != ai_material->Get(AI_MATKEY_COLOR_SPECULAR, ks)) {
         ks = aiColor3D(0.0f);
     }
-    glm::vec3 color_ambient = convert_color(ka);
-    glm::vec3 color_diffuse = convert_color(kd);
-    glm::vec3 color_specular = convert_color(ks);
+    if (aiReturn_SUCCESS != ai_material->Get(AI_MATKEY_COLOR_AMBIENT, ka)) {
+        ka = aiColor3D(0.0f);
+    }
 
-    std::vector<Texture> textures_ambient = get_textures_by_type(ai_material, aiTextureType_AMBIENT, color_ambient);
-    std::vector<Texture> textures_diffuse = get_textures_by_type(ai_material, aiTextureType_DIFFUSE, color_diffuse);
-    std::vector<Texture> textures_specular = get_textures_by_type(ai_material, aiTextureType_SPECULAR, color_specular);
+    std::vector<Texture> textures_diffuse = get_textures_by_type(ai_material, aiTextureType_DIFFUSE, kd);
+    std::vector<Texture> textures_specular = get_textures_by_type(ai_material, aiTextureType_SPECULAR, ks);
+    std::vector<Texture> textures_ambient = get_textures_by_type(ai_material, aiTextureType_AMBIENT, ka);
+
     std::vector<Texture> all_textures;
-    all_textures.insert(all_textures.end(), textures_ambient.begin(), textures_ambient.end());
+    const size_t total_textures = textures_diffuse.size() + textures_specular.size() + textures_ambient.size();
+    all_textures.reserve(total_textures);
+
     all_textures.insert(all_textures.end(), textures_diffuse.begin(), textures_diffuse.end());
     all_textures.insert(all_textures.end(), textures_specular.begin(), textures_specular.end());
-    Logger::debug("All textures");
-    for (auto&& texture : all_textures) {
-        Logger::debug(texture);
-    }
+    all_textures.insert(all_textures.end(), textures_ambient.begin(), textures_ambient.end());
 
     float shininess, index_of_refraction, opacity;
     if (aiReturn_SUCCESS != ai_material->Get(AI_MATKEY_SHININESS, shininess)) {
@@ -274,11 +288,13 @@ std::shared_ptr<Material> Scene::assimp_load_material(const aiScene* ai_scene,
         shading_mode = 1;
     }
 
-    materials_[material_name_string] = std::make_shared<Material>(material_name_string, all_textures,
-                                                                  shininess,
-                                                                  index_of_refraction,
-                                                                  opacity,
-                                                                  shading_mode);
-    Logger::debug("Material ", material_name_string, " is loaded on scene");
-    return materials_[material_name_string];
+    materials_[material_name] = std::make_shared<Material>(static_cast<GLuint>(materials_.size()),
+                                                           material_name,
+                                                           all_textures,
+                                                           shininess,
+                                                           index_of_refraction,
+                                                           opacity,
+                                                           shading_mode);
+    Logger::debug("Material ", material_name, " is loaded on scene");
+    return materials_[material_name];
 }

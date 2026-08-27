@@ -1,9 +1,15 @@
 #include <application.h>
-#include <fps_limiter.h>
 #include <shader.h>
+#include <time_manager.h>
 
-Application::Application(int width, int height, const char* title) {
-    Logger::debug("Application ctor(width, height, title)");
+void Application::init_glfw_private(int width, int height, const char* title) {
+    Logger::debug("Application init_glfw_private(width, height, title)");
+
+    if (is_initialized) {
+        Logger::debug("Application is initialized");
+        return;
+    }
+
     if (!glfwInit()) {
         Logger::error("Failed to initialize GLFW");
         return;
@@ -13,6 +19,8 @@ Application::Application(int width, int height, const char* title) {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+
+    glfwWindowHint(GLFW_SAMPLES, 4);
 
 #ifdef __APPLE__
     glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
@@ -34,82 +42,203 @@ Application::Application(int width, int height, const char* title) {
     }
     Logger::debug("GLAD initialization success");
 
-    glfwSetWindowUserPointer(window_, this);
     glfwSetFramebufferSizeCallback(window_, framebuffer_size_callback);
+    glfwSetKeyCallback(window_, key_callback);
+    if (glfwRawMouseMotionSupported()) {
+        glfwSetInputMode(window_, GLFW_RAW_MOUSE_MOTION, GLFW_TRUE);
+    }
+    glfwSetMouseButtonCallback(window_, mouse_button_callback);
+    glfwSetScrollCallback(window_, scroll_callback);
     glfwGetFramebufferSize(window_, &width, &height);
     glViewport(0, 0, (GLsizei)width, (GLsizei)height);
 
-    std::shared_ptr<Shader> shader = std::make_shared<Shader>(std::vector<std::string>{SHADERS_PATH "vertex.vert", SHADERS_PATH "fragment.frag"});
-    scene_.set_shader(shader);
-    scene_.assimp_parse_obj_files(MODELS_PATH);
-}
-
-Application::~Application() {
-    if (window_ != nullptr) {
-        glfwDestroyWindow(window_);
-        glfwTerminate();
-    }
-    Logger::debug("Application dtor()");
-}
-
-void Application::run() {
     glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
     glEnable(GL_CULL_FACE);
-    glFrontFace(GL_CW);
     glEnable(GL_DEPTH_TEST);
+    glEnable(GL_MULTISAMPLE);
 
-    scene_.get_shader().get()->use();
+    std::shared_ptr<Shader> shader = std::make_shared<Shader>(std::vector<std::string>{SHADERS_PATH "vertex.vert", SHADERS_PATH "fragment.frag"});
+    scene_.set_shader(shader);
 
-    entt::entity root_entity = entity_managment_system_.create_entity_from_node(registry_, get_scene(), get_scene().get_root_node());
-    entity_managment_system_.set_root_entity(root_entity);
-    Logger::debug(entity_managment_system_.get_entity_hierarchy_tree(registry_, root_entity, 0));
-    entity_managment_system_.print_all_components_of_all_entities(registry_, root_entity);
+    TimeManager::set_target_fps(165.0f);
+}
 
-    float fps = 165.0f;
-    FPSLimiter fps_limiter(fps);
+void Application::init_entt_private() {
+    Logger::debug("Application init_glfw_private(width, height, title)");
+    root_entity_ = EntityManagmentSystem::create_entity_from_node(registry_, scene_, scene_.get_root_node());
 
-    glm::mat4 transformation = glm::mat4(1.0f);
-    transformation = glm::translate(transformation, glm::vec3(0.0f, 0.0f, 0.0f));
-    // transformation = glm::rotate(transformation, glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-    float a = 16.0f;
-    transformation = glm::scale(transformation, glm::vec3(1.0f / a, 1.0f / a, 1.0f / a));
+    entt::entity main_camera = EntityManagmentSystem::create_entity_and_node(registry_, "MainCamera", scene_, root_entity_);
+    registry_.emplace<CameraComponent>(main_camera);
+    // EntityTransformSystem::set_entity_rotation(registry_, main_camera, glm::vec3(-45.0f, 45.0f, 0.0f));
+    // EntityTransformSystem::set_entity_scale(registry_, main_camera, glm::vec3(5.0f));
 
+    scene_.assimp_parse_obj_files(MODELS_PATH);
+    EntityManagmentSystem::create_entity_from_node(registry_, scene_, scene_.get_root_node());
+
+    EntityTransformSystem::set_entity_position(registry_, "Cube.001", glm::vec3(0.0f, 0.5f, 0.0f));
+    EntityTransformSystem::set_entity_position(registry_, "Suzanne", glm::vec3(0.0f, -0.5f, 0.0f));
+
+    EntityTransformSystem::set_entity_rotation(registry_, "Cube.001", glm::vec3(0.0f, 0.0f, 0.0f));
+    EntityTransformSystem::set_entity_rotation(registry_, "pigeon_Cube.001", glm::vec3(0.0f, 0.0f, 0.0f));
+    EntityTransformSystem::set_entity_rotation(registry_, "Suzanne", glm::vec3(0.0f, 0.0f, 0.0f));
+
+    EntityTransformSystem::set_entity_scale(registry_, "Cube.001", glm::vec3(1.0f / 16.0f));
+    EntityTransformSystem::set_entity_scale(registry_, "pigeon_Cube.001", glm::vec3(1.0f / 16.0f));
+    EntityTransformSystem::set_entity_scale(registry_, "Suzanne", glm::vec3(1.0f / 8.0f));
+
+    EntityTransformSystem::set_entity_rotation(registry_, "GeoContainer", glm::vec3(-90.0f, 0.0f, 0.0f));
+    EntityTransformSystem::set_entity_scale(registry_, "GeoContainer", glm::vec3(1.0f / 1000.0f));
+
+    Logger::debug(EntityManagmentSystem::get_entity_hierarchy_tree(registry_, root_entity_));
+    Logger::debug(EntityManagmentSystem::get_all_entity_components(registry_));
+}
+
+void Application::run_private() {
     Logger::debug("GLFW WindowShouldClose loop start");
     while (!glfwWindowShouldClose(window_)) {
+        glfwPollEvents();
         process_input(window_);
 
-        float delta_time = 1.0f / fps;
-        transformation = glm::rotate(transformation, delta_time * glm::radians(45.0f), glm::vec3(0.0f, 1.0f, 0.0f));
-        GLint transformation_location = glGetUniformLocation(scene_.get_shader()->get_program_id(), "transformation");
-        glUniformMatrix4fv(transformation_location, 1, GL_FALSE, glm::value_ptr(transformation));
-
+        TimeManager::update();
+        EntityMovementSystem::update_transform(registry_, TimeManager::get_frame_duration());
         render(window_);
 
-        glfwPollEvents();
-
-        fps_limiter.limit();
+        TimeManager::fps_limit();
     }
     Logger::debug("GLFW WindowShouldClose loop end");
 }
 
-void Application::framebuffer_size_callback(GLFWwindow* window, GLsizei width, GLsizei height) {
-    glViewport(0, 0, width, height);
-    Application* application = reinterpret_cast<Application*>(glfwGetWindowUserPointer(window));
-    if (application != nullptr) {
-        application->render(window);
-    }
-}
-
 void Application::process_input(GLFWwindow* window) {
+    // if (keyboard_key_map_[GLFW_KEY_A]) {
+    //     main_camera_velocity_component.linear.x = -CAMERA_LINEAR_VELOCITY;
+    // }
+    // if (keyboard_key_map_[GLFW_KEY_D]) {
+    //     main_camera_velocity_component.linear.x = CAMERA_LINEAR_VELOCITY;
+    // }
+    // if (keyboard_key_map_[GLFW_KEY_W]) {
+    //     main_camera_velocity_component.linear.y = CAMERA_LINEAR_VELOCITY;
+    // }
+    // if (keyboard_key_map_[GLFW_KEY_S]) {
+    //     main_camera_velocity_component.linear.y = -CAMERA_LINEAR_VELOCITY;
+    // }
+    // if (keyboard_key_map_[GLFW_KEY_SPACE]) {
+    //     main_camera_velocity_component.linear.z = CAMERA_LINEAR_VELOCITY;
+    // }
+    // if (keyboard_key_map_[GLFW_KEY_LEFT_SHIFT]) {
+    //     main_camera_velocity_component.linear.z = -CAMERA_LINEAR_VELOCITY;
+    // }
+    // if (keyboard_key_map_[GLFW_KEY_E]) {
+    //     main_camera_velocity_component.angular.y = -CAMERA_ANGULAR_VELOCITY;
+    // }
+    // if (keyboard_key_map_[GLFW_KEY_Q]) {
+    //     main_camera_velocity_component.angular.y = CAMERA_ANGULAR_VELOCITY;
+    // }
+
+    if (mouse_button_map_[GLFW_MOUSE_BUTTON_2]) {
+        double mouse_x, mouse_y;
+        glfwGetCursorPos(window, &mouse_x, &mouse_y);
+        glm::vec2 mouse_current_coordinates = glm::vec2(mouse_x, mouse_y);
+        glm::vec2 mouse_diff = mouse_current_coordinates - mouse_last_coordinates_;
+        CameraSystem::update_camera_rotation(registry_, "MainCamera", mouse_diff);
+        mouse_last_coordinates_ = mouse_current_coordinates;
+    }
+
+    if (mouse_button_map_[GLFW_MOUSE_BUTTON_3]) {
+        double mouse_x, mouse_y;
+        glfwGetCursorPos(window, &mouse_x, &mouse_y);
+        glm::vec2 mouse_current_coordinates = glm::vec2(mouse_x, mouse_y);
+        glm::vec2 mouse_diff = mouse_current_coordinates - mouse_last_coordinates_;
+        CameraSystem::update_camera_position(registry_, "MainCamera", mouse_diff);
+        mouse_last_coordinates_ = mouse_current_coordinates;
+    }
+
+    // if (!keyboard_key_map_[GLFW_KEY_A] && main_camera_velocity_component.linear.x < 0.0f) {
+    //     main_camera_velocity_component.linear.x = 0.0f;
+    // }
+    // if (!keyboard_key_map_[GLFW_KEY_D] && main_camera_velocity_component.linear.x > 0.0f) {
+    //     main_camera_velocity_component.linear.x = 0.0f;
+    // }
+    // if (!keyboard_key_map_[GLFW_KEY_W] && main_camera_velocity_component.linear.y > 0.0f) {
+    //     main_camera_velocity_component.linear.y = 0.0f;
+    // }
+    // if (!keyboard_key_map_[GLFW_KEY_S] && main_camera_velocity_component.linear.y < 0.0f) {
+    //     main_camera_velocity_component.linear.y = 0.0f;
+    // }
+    // if (!keyboard_key_map_[GLFW_KEY_SPACE] && main_camera_velocity_component.linear.z > 0.0f) {
+    //     main_camera_velocity_component.linear.z = 0.0f;
+    // }
+    // if (!keyboard_key_map_[GLFW_KEY_LEFT_SHIFT] && main_camera_velocity_component.linear.z < 0.0f) {
+    //     main_camera_velocity_component.linear.z = 0.0f;
+    // }
+    // if (!keyboard_key_map_[GLFW_KEY_E] && main_camera_velocity_component.angular.y < 0.0f) {
+    //     main_camera_velocity_component.angular.y = 0.0f;
+    // }
+    // if (!keyboard_key_map_[GLFW_KEY_Q] && main_camera_velocity_component.angular.y > 0.0f) {
+    //     main_camera_velocity_component.angular.y = 0.0f;
+    // }
+
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS) {
         glfwSetWindowShouldClose(window, true);
     }
 }
 
-void Application::render(GLFWwindow* window) const {
+void Application::render(GLFWwindow* window) {
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-    entity_managment_system_.draw_all_meshes_of_all_entities(registry_, entity_managment_system_.get_root_entity());
+    int width, height;
+    glfwGetFramebufferSize(window, &width, &height);
 
-    glfwSwapBuffers(window);
+    EntityManagmentSystem::draw_all_meshes(registry_, width, height);
+
+    glfwSwapBuffers(window_);
+}
+
+void Application::framebuffer_size_callback(GLFWwindow* window, int width, int height) {
+    glViewport(0, 0, (GLsizei)width, (GLsizei)height);
+    Application::render(window);
+}
+
+void Application::key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (key < 0) {
+        return;
+    }
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+        keyboard_key_map_[key] = true;
+    } else if (action == GLFW_RELEASE) {
+        keyboard_key_map_[key] = false;
+    }
+
+    // Logger::debug("Key = ", key, " action = ", action);
+}
+
+void Application::mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (button < 0) {
+        return;
+    }
+    if (action == GLFW_PRESS || action == GLFW_REPEAT) {
+        mouse_button_map_[button] = true;
+    } else if (action == GLFW_RELEASE) {
+        mouse_button_map_[button] = false;
+    }
+
+    double mouse_x, mouse_y;
+    glfwGetCursorPos(window, &mouse_x, &mouse_y);
+    mouse_last_coordinates_ = glm::vec2(mouse_x, mouse_y);
+
+    // Logger::debug("Button = ", button, " action = ", action);
+}
+
+void Application::scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+    entt::entity main_camera_entity = EntityManagmentSystem::get_entity_by_name(registry_, "MainCamera");
+    if (main_camera_entity == entt::null) {
+        Logger::error("Entity MainCamera was not found when scroll_callback");
+        return;
+    }
+
+    CameraComponent& main_camera_camera_component = registry_.get<CameraComponent>(main_camera_entity);
+
+    main_camera_camera_component.radius = glm::clamp(main_camera_camera_component.radius - static_cast<float>(yoffset), 1.0f, 10.0f);
+
+    // Logger::debug("Scroll xoffset = ", xoffset, " yoffset = ", yoffset);
+    Logger::debug("Camera new radius = ", main_camera_camera_component.radius);
 }

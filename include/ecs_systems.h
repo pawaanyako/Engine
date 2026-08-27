@@ -5,37 +5,48 @@
 
 class EntityManagmentSystem {
 public:
-    EntityManagmentSystem::EntityManagmentSystem() {
-        Logger::debug("EntityManagmentSystem ctor()");
-    }
+    static entt::entity get_entity_by_name(const entt::registry& registry, const std::string& name);
 
-    EntityManagmentSystem::~EntityManagmentSystem() {
-        Logger::debug("EntityManagmentSystem dtor()");
-    }
+    static entt::entity create_entity_and_node(entt::registry& registry,
+                                               const std::string& name,
+                                               Scene& scene,
+                                               entt::entity parent_entity = entt::null);
 
-    void EntityManagmentSystem::set_root_entity(entt::entity root_entity) {
-        root_entity_ = root_entity;
-    }
+    static entt::entity create_entity_from_node(entt::registry& registry,
+                                                const Scene& scene,
+                                                const std::shared_ptr<Node>& node,
+                                                entt::entity parent_entity = entt::null);
 
-    const entt::entity EntityManagmentSystem::get_root_entity() const {
-        return root_entity_;
-    }
+    static std::string get_entity_hierarchy_tree(const entt::registry& registry, const entt::entity entity, int depth = 0);
+    static std::string get_all_entity_components(const entt::registry& registry);
 
-    entt::entity create_entity_from_node(entt::registry& registry,
-                                         const Scene& scene,
-                                         const std::shared_ptr<Node>& node,
-                                         entt::entity parent_entity = entt::null);
+    static void draw_all_meshes(const entt::registry& registry, int width, int height);
+};
 
-    std::string get_entity_hierarchy_tree(const entt::registry& registry,
-                                          const entt::entity entity,
-                                          int depth) const;
+class EntityTransformSystem {
+public:
+    static void set_entity_position(entt::registry& registry, const std::string& name, const glm::vec3& position);
+    static void set_entity_position(entt::registry& registry, entt::entity entity, const glm::vec3& position);
 
-    void print_all_components_of_all_entities(const entt::registry& registry,
-                                              const entt::entity entity) const;
+    static void set_entity_rotation(entt::registry& registry, const std::string& name, const glm::vec3& rotation);
+    static void set_entity_rotation(entt::registry& registry, entt::entity entity, const glm::vec3& rotation);
 
-    void draw_all_meshes_of_all_entities(const entt::registry& registry,
-                                         const entt::entity entity) const;
+    static void set_entity_scale(entt::registry& registry, const std::string& name, const glm::vec3& scale);
+    static void set_entity_scale(entt::registry& registry, entt::entity entity, const glm::vec3& scale);
+};
 
-private:
-    entt::entity root_entity_ = entt::null;
+class EntityMovementSystem {
+public:
+    static void update_transform(entt::registry& registry, float frame_dutation);
+};
+
+class CameraSystem {
+public:
+    static void create_camera(entt::registry& registry);
+
+    static void update_camera_position(entt::registry& registry, const std::string& name, const glm::vec2& mouse_diff);
+    static void update_camera_position(entt::registry& registry, entt::entity camera, const glm::vec2& mouse_diff);
+
+    static void update_camera_rotation(entt::registry& registry, const std::string& name, const glm::vec2& mouse_diff);
+    static void update_camera_rotation(entt::registry& registry, entt::entity camera, const glm::vec2& mouse_diff);
 };

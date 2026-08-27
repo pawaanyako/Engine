@@ -12,15 +12,17 @@ Mesh::Mesh(const std::vector<glm::vec3>& vertex_positions,
     bind_vao_vbo_ebo();
 }
 
-Mesh::Mesh(const std::string& name,
+Mesh::Mesh(GLuint id,
+           const std::string& name,
            const std::vector<Vertex>& vertices,
            const std::vector<GLuint>& vertex_indices,
-           GLuint material_id) {
-    Logger::debug("Mesh ctor(name, vertices, vertex_indices, material_id) - name: ", name);
+           const std::shared_ptr<Material>& material) {
+    Logger::debug("Mesh ctor(name, vertices, vertex_indices, material) - id: ", id, ", name: ", name);
+    id_ = id;
     name_ = name;
     vertices_ = vertices;
     vertex_indices_ = vertex_indices;
-    material_id_ = material_id;
+    material_ = material;
     bind_vao_vbo_ebo();
 }
 
@@ -40,26 +42,36 @@ Mesh::~Mesh() {
     }
 }
 
-const std::string Mesh::get_name() const {
+const GLuint Mesh::get_id() const {
+    return id_;
+}
+
+const std::string& Mesh::get_name() const {
     return name_;
 }
 
-const GLuint Mesh::get_id() const {
-    return vao_;
-}
-
-const GLuint Mesh::get_material_id() const {
-    return material_id_;
+const std::weak_ptr<Material>& Mesh::get_material() const {
+    return material_;
 }
 
 void Mesh::draw(const std::shared_ptr<Shader>& shader) const {
     glBindVertexArray(vao_);
 
-    glActiveTexture(GL_TEXTURE0);
-    glBindTexture(GL_TEXTURE_2D, material_id_);
+    const std::vector textures = material_.lock().get()->get_textures();
+    for (size_t i = 0; i < textures.size(); ++i) {
+        if (textures[i].type == Diffuse) {
+            glm::vec3 color = textures[i].color;
+            GLint transformation_location = glGetUniformLocation(shader.get()->get_program_id(), "diffuse_color");
+            glUniform3f(transformation_location, color.x, color.y, color.z);
+
+            glActiveTexture(GL_TEXTURE0 + static_cast<GLuint>(i));
+            glBindTexture(GL_TEXTURE_2D, textures[i].id);
+        }
+    }
 
     glDrawElements(GL_TRIANGLES, (GLsizei)vertex_indices_.size(), GL_UNSIGNED_INT, 0);
 
+    glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, 0);
     glBindVertexArray(0);
 }
